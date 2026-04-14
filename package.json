@@ -1,0 +1,17 @@
+{
+  "name": "antigravity-v4-webhook",
+  "version": "4.0.0",
+  "description": "Antigravity v4 — Multi-Symbol Futures Webhook Bot (Bitget)",
+  "type": "module",
+  "main": "antigravity-webhook.js",
+  "scripts": {
+    "start": "node antigravity-webhook.js",
+    "dev": "node antigravity-webhook.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
