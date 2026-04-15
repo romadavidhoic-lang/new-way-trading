@@ -436,6 +436,18 @@ app.get('/', (req, res) => {
              mode: CONFIG.paperTrading ? 'PAPER' : 'LIVE' })
 })
 
+// ─── Process-level error guards (prevent Railway container crash) ─────────────
+
+process.on('uncaughtException', (err) => {
+  console.error(`[${ts()}] UNCAUGHT EXCEPTION — ${err.message}\n${err.stack}`)
+  // Do NOT exit — keep the server running
+})
+
+process.on('unhandledRejection', (reason) => {
+  console.error(`[${ts()}] UNHANDLED REJECTION — ${reason}`)
+  // Do NOT exit — keep the server running
+})
+
 // ─── Boot ─────────────────────────────────────────────────────────────────────
 
 initFiles()
