@@ -29,6 +29,41 @@ import express from 'express'
 import crypto  from 'crypto'
 import { readFileSync, writeFileSync, existsSync, appendFileSync } from 'fs'
 
+// ─── Telegram ────────────────────────────────────────────────────────────────
+
+const TG_TOKEN   = process.env.TELEGRAM_TOKEN   || ''
+const TG_CHAT_ID = process.env.TELEGRAM_CHAT_ID || ''
+
+async function tg(text) {
+  if (!TG_TOKEN || !TG_CHAT_ID) return
+  try {
+    await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
+      method  : 'POST',
+      headers : { 'Content-Type': 'application/json' },
+      body    : JSON.stringify({ chat_id: TG_CHAT_ID, text, parse_mode: 'HTML' }),
+      signal  : AbortSignal.timeout(8000),
+    })
+  } catch { /* never crash the bot over a notification */ }
+}
+
+async function tgTrade({ sym, action, entry, sl, tp, sizeUSD, leverage, rr, score, mode, orderId }) {
+  const dir   = action === 'open_long' ? '📈 LONG' : '📉 SHORT'
+  const emoji = mode === 'PAPER' ? '📋' : mode === 'LIVE' ? '🔴' : '❌'
+  return tg(
+`${emoji} <b>AGv4 Webhook — ${mode}</b>
+📌 <b>${sym}</b> ${dir}
+💰 Entry:  <b>$${(+entry).toFixed(4)}</b>
+🛑 SL:     $${(+sl).toFixed(4)}
+🎯 TP:     $${(+tp).toFixed(4)}  (${(+rr).toFixed(2)}R)
+💵 Size:   $${(+sizeUSD).toFixed(2)} @ ${leverage}x${score != null ? `\n⭐ Score:  ${score}/8` : ''}
+🆔 ${orderId || '—'}`
+  )
+}
+
+async function tgError(msg) {
+  return tg(`❌ <b>AGv4 Webhook — ERROR</b>\n${msg}`)
+}
+
 // ─── Config ──────────────────────────────────────────────────────────────────
 
 const PORT = parseInt(process.env.PORT || '3000')
@@ -313,16 +348,21 @@ app.post('/webhook', async (req, res) => {
     if (CONFIG.paperTrading) {
       orderId = `PAPER-${Date.now()}`
       console.log(`  📋 PAPER TRADE — ${orderId}`)
+      await tgTrade({ sym: symbol, action, entry: entryN, sl: slN, tp: tpN,
+                      sizeUSD, leverage, rr, score, mode: 'PAPER', orderId })
     } else {
       try {
         const order = await placeBitgetOrder(symbol, action, sizeUSD, entryN, slN, tpN, leverage)
         orderId = order?.orderId || `LIVE-${Date.now()}`
         mode    = 'LIVE'
         console.log(`  ✅ LIVE ORDER: ${orderId}`)
+        await tgTrade({ sym: symbol, action, entry: entryN, sl: slN, tp: tpN,
+                        sizeUSD, leverage, rr, score, mode: 'LIVE', orderId })
       } catch (err) {
         mode  = 'ERROR'
         notes = `Order failed: ${err.message}`
         console.error(`  ✗ ${err.message}`)
+        await tgError(`${symbol} order failed: ${err.message}`)
       }
     }
 
